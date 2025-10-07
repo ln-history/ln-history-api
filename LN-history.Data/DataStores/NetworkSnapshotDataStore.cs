@@ -20,7 +20,7 @@ public class NetworkSnapshotDataStore : INetworkSnapshotDataStore
                     SELECT nrg.raw_gossip 
                     FROM nodes AS n
                     JOIN nodes_raw_gossip AS nrg 
-                    ON n.node_id_str = nrg.node_id_str
+                    ON n.node_id_str = nrg.node_id
                     WHERE @timestamp BETWEEN n.from_timestamp AND n.last_seen
                     AND nrg.timestamp <= @timestamp
                     AND nrg.timestamp >= @timestamp - INTERVAL '14 days'

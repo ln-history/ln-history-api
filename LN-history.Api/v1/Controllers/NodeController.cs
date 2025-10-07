@@ -26,7 +26,7 @@ public async Task<IActionResult> GetNodeInformation(string nodeId, DateTime time
         -- Get all nodes_raw_gossip for the node_id up until the given timestamp
         SELECT nrg.raw_gossip
         FROM nodes_raw_gossip nrg
-        WHERE nrg.node_id_str = @nodeId
+        WHERE nrg.node_id = @nodeId
           AND nrg.timestamp <= @timestamp
 
         UNION ALL

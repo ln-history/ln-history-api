@@ -9,7 +9,6 @@ using LN_history.Api.ApiKeyMiddleware;
 using LN_history.Api.Mapping;
 using LN_history.Api.SimpleApiKeyMiddleware;
 using LN_history.Api.v1.Controllers;
-using LN_history.Api.v2.Controllers;
 using LN_history.Cache;
 using LN_history.Core;
 using LN_history.Core.Services;
@@ -49,7 +48,7 @@ builder.Services.AddLightningNetworkServices(builder.Configuration);
 builder.Services.AddBitcoinServices();
 
 builder.Services.AddApiServices(
-    [Assembly.GetAssembly(typeof(LightningNetworkController)), Assembly.GetAssembly(typeof(SnapshotController))]
+    [Assembly.GetAssembly(typeof(LightningNetworkController)), Assembly.GetAssembly(typeof(LightningNetworkController))]
 );
 
 builder.Services.AddAutoMapper(typeof(LightningNodeMappingProfile));
@@ -102,11 +101,15 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(opt =>
 {
     // Create separate Swagger specs for v1 and v2
-    opt.SwaggerDoc("v1", new OpenApiInfo { Title = "Lightning Network History", Description = "Queries a PostgreSQL database that stores the data on a SSD", Version = "v1" });
-    opt.SwaggerDoc("v2", new OpenApiInfo { Title = "Lightning Network History", Description = "Queries a DuckDB that stores the data in RAM", Version = "v2" });
+    opt.SwaggerDoc("v1",
+        new OpenApiInfo
+        {
+            Title = "Lightning Network History",
+            Description = "Queries a PostgreSQL database that stores the data on a SSD", Version = "v1"
+        });
 
     // Include XML comments
-    var assemblies = new[] { Assembly.GetAssembly(typeof(NodeService)), Assembly.GetAssembly(typeof(SnapshotController)) };
+    var assemblies = new[] { Assembly.GetAssembly(typeof(NodeService)), Assembly.GetAssembly(typeof(LightningNetworkController)) };
     foreach (var assembly in assemblies)
     {
         var xmlFileName = $"{assembly!.GetName().Name}.xml";
@@ -163,7 +166,6 @@ app.UseSwaggerUI(options =>
 {
     options.DocumentTitle = "Lightning Network History";
     options.SwaggerEndpoint("/swagger/v1/swagger.json", "LN-history API V1");
-    options.SwaggerEndpoint("/swagger/v2/swagger.json", "LN-history API V2");
 });
 
 
