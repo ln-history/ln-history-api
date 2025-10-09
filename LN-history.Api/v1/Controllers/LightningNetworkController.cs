@@ -42,7 +42,7 @@ public class LightningNetworkController : ControllerBase
             var sql = """
                 SELECT nrg.raw_gossip
                 FROM nodes n
-                JOIN nodes_raw_gossip nrg ON n.node_id_str = nrg.node_id
+                JOIN nodes_raw_gossip nrg ON n.node_id = nrg.node_id
                 WHERE @timestamp BETWEEN n.from_timestamp AND n.last_seen
                   AND nrg.timestamp <= @timestamp
                   AND nrg.timestamp >= @timestamp - INTERVAL '14 days'
@@ -195,7 +195,7 @@ public class LightningNetworkController : ControllerBase
                             COPY (
                                 SELECT nrg.raw_gossip
                                 FROM nodes n
-                                JOIN nodes_raw_gossip nrg ON n.node_id_str = nrg.node_id
+                                JOIN nodes_raw_gossip nrg ON n.node_id = nrg.node_id
                                 WHERE '{timestampStr}'::timestamp BETWEEN n.from_timestamp AND n.last_seen
                                   AND nrg.timestamp <= '{timestampStr}'::timestamp
                                   AND nrg.timestamp >= '{timestampStr}'::timestamp - INTERVAL '14 days'

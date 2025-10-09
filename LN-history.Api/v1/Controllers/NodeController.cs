@@ -34,7 +34,7 @@ public async Task<IActionResult> GetNodeInformation(string nodeId, DateTime time
         -- Get channels where the node is either source or target
         SELECT c.raw_gossip
         FROM channels c
-        WHERE (c.source_node_id_str = @nodeId OR c.target_node_id_str = @nodeId)
+        WHERE (c.source_node_id = @nodeId OR c.target_node_id = @nodeId)
           AND c.from_timestamp <= @timestamp
           AND (c.to_timestamp IS NULL OR c.to_timestamp > @timestamp)
 
@@ -46,7 +46,7 @@ public async Task<IActionResult> GetNodeInformation(string nodeId, DateTime time
         WHERE cu.scid IN (
             SELECT c.scid
             FROM channels c
-            WHERE (c.source_node_id_str = @nodeId OR c.target_node_id_str = @nodeId)
+            WHERE (c.source_node_id = @nodeId OR c.target_node_id_str = @nodeId)
               AND c.from_timestamp <= @timestamp
               AND (c.to_timestamp IS NULL OR c.to_timestamp > @timestamp)
         )
