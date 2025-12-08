@@ -49,14 +49,14 @@ var trackUsage = builder.Configuration.GetValue<bool>("ApiKeyMiddleware:Enabled"
 
 builder.Services.AddLnHistoryDatabase(builder.Configuration);
 
-builder.Services.AddBitcoinBlocks(builder.Configuration);
+// builder.Services.AddBitcoinBlocks(builder.Configuration);
 
 // Only add SQLite + middleware if tracking is enabled
-if (trackUsage)
-{
-    builder.Services.AddDbContext<ApiKeyDbContext>(options =>
-        options.UseSqlite(builder.Configuration.GetConnectionString("ApiKeyDatabase")));
-}
+// if (trackUsage)
+// {
+//     builder.Services.AddDbContext<ApiKeyDbContext>(options =>
+//         options.UseSqlite(builder.Configuration.GetConnectionString("ApiKeyDatabase")));
+// }
 
 FluentMapper.Initialize(configuration =>
 {
@@ -65,10 +65,10 @@ FluentMapper.Initialize(configuration =>
     configuration.ForDommel();
 });
 
-builder.Services.AddCaching(builder.Configuration);
+// builder.Services.AddCaching(builder.Configuration);
 
 builder.Services.AddLightningNetworkServices(builder.Configuration);
-builder.Services.AddBitcoinServices();
+// builder.Services.AddBitcoinServices();
 
 builder.Services.AddApiServices(
     [Assembly.GetAssembly(typeof(LightningNetworkController)), Assembly.GetAssembly(typeof(LightningNetworkController))]
@@ -123,12 +123,12 @@ builder.Services.AddEndpointsApiExplorer();
 // Configure Swagger
 builder.Services.AddSwaggerGen(opt =>
 {
-    // Create separate Swagger specs for v1 and v2
+    // Create separate Swagger specs for v1
     opt.SwaggerDoc("v1",
         new OpenApiInfo
         {
             Title = "Lightning Network History",
-            Description = "Queries a PostgreSQL database that stores the data on a SSD", Version = "v1"
+            Description = "Queries a PostgreSQL database 'ln-history-database' that stores the data on a SSD", Version = "v1"
         });
 
     // Include XML comments
@@ -168,14 +168,14 @@ builder.Services.AddSwaggerGen(opt =>
 var app = builder.Build();
 
 // Add usage tracking middleware if enabled
-if (trackUsage)
-{
-    app.UseMiddleware<ApiKeyTrackingMiddleware>();
-}
-else
-{
-    app.UseMiddleware<SimpleApiKeyMiddleware>();
-}
+// if (trackUsage)
+// {
+//     app.UseMiddleware<ApiKeyTrackingMiddleware>();
+// }
+// else
+// {
+app.UseMiddleware<SimpleApiKeyMiddleware>();
+// }
 
 app.UseRouting();
 

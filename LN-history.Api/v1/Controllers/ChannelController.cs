@@ -1,5 +1,7 @@
 using Asp.Versioning;
-using Microsoft.AspNetCore.Http;
+using Dapper;
+using LN_history.Api.Instrumentation;
+using LN_history.Api.Model;
 using Microsoft.AspNetCore.Mvc;
 using Npgsql;
 
@@ -7,91 +9,128 @@ namespace LN_history.Api.v1.Controllers;
 
 [ApiController]
 [ApiVersion(1)]
-[Route("ln-history/v{v:apiVersion}/[controller]")]
+[Route("ln-history/v{v:apiVersion}/channels")]
 public class ChannelController : ControllerBase
 {
-    private readonly NpgsqlConnection _npgsqlConnection;
-    
-    public ChannelController(NpgsqlConnection npgsqlConnection)
+    private readonly NpgsqlConnection _dbConnection;
+    private readonly AppMetrics _metrics;
+
+    public ChannelController(NpgsqlConnection dbConnection, AppMetrics metrics)
     {
-        _npgsqlConnection = npgsqlConnection;
+        _dbConnection = dbConnection;
+        _metrics = metrics;
     }
-    
-    /// <summary>
-    /// Gets Information of a channel by channelId (scid)
-    /// </summary>
-    /// <param name="scid"></param>
-    /// <param name="timestamp">timestamp in ISO 8601 format</param>
-    /// <param name="cancellationToken"></param>
-    /// <returns></returns>
-    [HttpGet("{scid}/info/{timestamp}/stream")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetChannelInformationByScidAndTimestamp(string scid, DateTime timestamp, CancellationToken cancellationToken = default)
+
+    // --- RAW GOSSIP ---
+
+    [HttpGet("{scid}/gossip")]
+    public async Task<IActionResult> GetChannelGossip(string scid)
     {
-        await _npgsqlConnection.OpenAsync(cancellationToken);
+        return await GetChannelGossipRange(scid, DateTime.MinValue, DateTime.MaxValue);
+    }
 
+    [HttpGet("{scid}/gossip/range")]
+    public async Task<IActionResult> GetChannelGossipRange(string scid, [FromQuery] DateTime from, [FromQuery] DateTime to)
+    {
+        long scidInt = ParseScid(scid);
+        if (scidInt == 0) return BadRequest("Invalid SCID format");
+
+        var queryTimer = System.Diagnostics.Stopwatch.StartNew();
+        await _dbConnection.OpenAsync();
+
+        // Combines Channel Announcement + All Updates
         var sql = """
-            -- Get the channel by scid
-            SELECT c.raw_gossip
-            FROM channels c
-            WHERE c.scid = @scid
-              AND c.from_timestamp <= @timestamp
-              AND (c.to_timestamp IS NULL OR c.to_timestamp > @timestamp)
-
+            SELECT raw_gossip, 'announcement' as type, NULL as valid_from
+            FROM channels 
+            WHERE scid = @scidInt
+            
             UNION ALL
-
-            -- Get all channel_updates for this scid up until the given timestamp
-            SELECT cu.raw_gossip
-            FROM channel_updates cu
-            WHERE cu.scid = @scid
-              AND cu.from_timestamp <= @timestamp
-
-            UNION ALL
-
-            -- Get latest nodes_raw_gossip for both source and target nodes
-            SELECT nrg.raw_gossip
-            FROM nodes_raw_gossip nrg
-            WHERE nrg.node_id IN (
-                SELECT c.source_node_id
-                FROM channels c
-                WHERE c.scid = @scid
-                  AND c.from_timestamp <= @timestamp
-                  AND (c.to_timestamp IS NULL OR c.to_timestamp > @timestamp)
-                UNION
-                SELECT c.target_node_id
-                FROM channels c
-                WHERE c.scid = @scid
-                  AND c.from_timestamp <= @timestamp
-                  AND (c.to_timestamp IS NULL OR c.to_timestamp > @timestamp)
-            )
-            AND nrg.timestamp <= @timestamp
-            AND nrg.timestamp = (
-                SELECT MAX(nrg2.timestamp)
-                FROM nodes_raw_gossip nrg2
-                WHERE nrg2.node_id = nrg.node_id
-                  AND nrg2.timestamp <= @timestamp
-            )
+            
+            SELECT raw_gossip, 'update' as type, valid_from
+            FROM channel_updates
+            WHERE scid = @scidInt
+              AND valid_from >= @from
+              AND valid_from <= @to
+            ORDER BY valid_from ASC
         """;
 
-        Response.ContentType = "application/octet-stream";
-        Response.Headers.Append("Content-Disposition", 
-            $"attachment; filename=channel_{scid}_{timestamp:yyyyMMdd_HHmmss}.bin");
+        var result = await _dbConnection.QueryAsync(sql, new { scidInt, from, to });
+        queryTimer.Stop();
+        _metrics.DbQueryDuration.Record(queryTimer.Elapsed.TotalSeconds);
+        
+        return Ok(result);
+    }
 
-        using var cmd = new NpgsqlCommand(sql, _npgsqlConnection);
-        cmd.Parameters.AddWithValue("@scid", scid);
-        cmd.Parameters.AddWithValue("@timestamp", timestamp);
+    // --- PARSED INFO (Time Travel) ---
 
-        using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+    [HttpGet("{scid}/info/{timestamp}")]
+    public async Task<IActionResult> GetChannelInfoAtTime(string scid, DateTime timestamp)
+    {
+        long scidInt = ParseScid(scid);
+        if (scidInt == 0) return BadRequest("Invalid SCID format");
+        
+        var queryTimer = System.Diagnostics.Stopwatch.StartNew();
+        await _dbConnection.OpenAsync();
 
-        while (await reader.ReadAsync(cancellationToken))
+        // 1. Get Static Channel Data
+        var chanSql = """
+            SELECT scid, source_node_id, target_node_id, capacity_sat, funding_timestamp, closing_timestamp
+            FROM channels
+            WHERE scid = @scidInt
+        """;
+        var channel = await _dbConnection.QuerySingleOrDefaultAsync<ChannelDto>(chanSql, new { scidInt });
+        
+        if (channel == null) return NotFound("Channel not found.");
+
+        // 2. Get Active Updates (Policies) at Time T
+        var updateSql = """
+            SELECT direction::int::bool as direction,, fee_base_msat, fee_proportional_millionths, htlc_minimum_msat, htlc_maximum_msat, valid_from
+            FROM channel_updates
+            WHERE scid = @scidInt
+              AND valid_from <= @timestamp
+              AND (valid_to > @timestamp OR valid_to IS NULL)
+        """;
+        
+        channel.Policies = (await _dbConnection.QueryAsync<ChannelPolicyDto>(updateSql, new { scidInt, timestamp })).ToList();
+
+        queryTimer.Stop();
+        _metrics.DbQueryDuration.Record(queryTimer.Elapsed.TotalSeconds);
+        
+        return Ok(channel);
+    }
+
+    // --- STATS ---
+
+    [HttpGet("{scid}/update-count")]
+    public async Task<IActionResult> GetUpdateCount(string scid)
+    {
+        long scidInt = ParseScid(scid);
+        var queryTimer = System.Diagnostics.Stopwatch.StartNew();
+        await _dbConnection.OpenAsync();
+
+        var count = await _dbConnection.ExecuteScalarAsync<long>(
+            "SELECT COUNT(*) FROM channel_updates WHERE scid = @scidInt", 
+            new { scidInt }
+        );
+        
+        queryTimer.Stop();
+        _metrics.DbQueryDuration.Record(queryTimer.Elapsed.TotalSeconds);
+        return Ok(new { scid, count });
+    }
+
+    // Helper to handle "800x1x1" vs raw int
+    private long ParseScid(string input)
+    {
+        if (long.TryParse(input, out var result)) return result;
+        if (input.Contains('x'))
         {
-            if (!reader.IsDBNull(0))
+            try
             {
-                var bytes = (byte[])reader[0];
-                await Response.Body.WriteAsync(bytes, cancellationToken);
+                var parts = input.Split('x').Select(long.Parse).ToArray();
+                return (parts[0] << 40) | (parts[1] << 16) | parts[2];
             }
+            catch { return 0; }
         }
-
-        return new EmptyResult();
+        return 0;
     }
 }

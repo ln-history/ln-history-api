@@ -28,6 +28,10 @@
       </PackageReference>
       <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" />
       <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.2" />
+      <PackageReference Include="OpenTelemetry" Version="1.14.0" />
+      <PackageReference Include="OpenTelemetry.Exporter.Console" Version="1.14.0" />
+      <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.14.0" />
+      <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.14.0" />
     </ItemGroup>
 
     <ItemGroup>
