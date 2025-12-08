@@ -6,6 +6,7 @@ using Dapper.FluentMap;
 using Dapper.FluentMap.Dommel;
 using LN_history.Api;
 using LN_history.Api.ApiKeyMiddleware;
+using LN_history.Api.Instrumentation;
 using LN_history.Api.Mapping;
 using LN_history.Api.SimpleApiKeyMiddleware;
 using LN_history.Api.v1.Controllers;
@@ -19,7 +20,29 @@ using Microsoft.AspNetCore.Mvc.Formatters;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Logs;
+
 var builder = WebApplication.CreateBuilder(args);
+
+// 1. Register your metrics class
+builder.Services.AddSingleton<AppMetrics>();
+
+builder.Services.AddOpenTelemetry()
+    .WithMetrics(metrics => metrics
+        .AddAspNetCoreInstrumentation() // Auto-track HTTP requests
+        .AddRuntimeInstrumentation()    // Auto-track CPU/Memory/GC
+        .AddOtlpExporter()              // Send to Collector
+        .AddMeter(AppMetrics.MeterName) 
+        .AddOtlpExporter()
+    );            
+
+builder.Logging.AddOpenTelemetry(options =>
+{
+    options.IncludeScopes = true;
+    options.IncludeFormattedMessage = true;
+    options.AddOtlpExporter();
+});
 
 var apiKey = builder.Configuration["ApiKey"];
 var trackUsage = builder.Configuration.GetValue<bool>("ApiKeyMiddleware:Enabled");
