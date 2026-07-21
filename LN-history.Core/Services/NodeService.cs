@@ -15,8 +15,8 @@ public class NodeService : INodeService
     public Task<Node?> GetNodeAsync(string nodeId, DateTime? asOf, bool includeAllTimeDegree, bool includeRawGossip, CancellationToken cancellationToken) =>
         _nodes.GetByIdAsync(nodeId, asOf, includeAllTimeDegree, includeRawGossip, cancellationToken);
 
-    public Task<Page<Node>> GetNodesAsync(DateTime? existedAt, int limit, int offset, CancellationToken cancellationToken) =>
-        _nodes.GetNodesAsync(existedAt, limit, offset, cancellationToken);
+    public Task<Page<Node>> GetNodesAsync(DateTime? existedAt, bool currentlyActive, int limit, int offset, CancellationToken cancellationToken) =>
+        _nodes.GetNodesAsync(existedAt, currentlyActive, limit, offset, cancellationToken);
 
     public async Task<Node?> GetNodeHistoryAsync(string nodeId, DateTime? until, bool includeRawGossip, CancellationToken cancellationToken)
     {

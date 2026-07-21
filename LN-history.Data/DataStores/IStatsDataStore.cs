@@ -9,8 +9,11 @@ public interface IStatsDataStore
 
     Task<IReadOnlyList<NodeStat>> TopNodesAsync(NodeRankBy by, int limit, CancellationToken cancellationToken);
 
-    /// <summary>Network-wide counts currently (at = null) or at a point in time.</summary>
-    Task<NetworkStats> GetNetworkStatsAsync(DateTime? at, CancellationToken cancellationToken);
+    /// <summary>
+    /// Network-wide counts. At a point in time when <paramref name="at"/> is set; otherwise current —
+    /// <paramref name="currentlyActive"/> counts only nodes seen in the last 14 days, else all nodes.
+    /// </summary>
+    Task<NetworkStats> GetNetworkStatsAsync(DateTime? at, bool currentlyActive, CancellationToken cancellationToken);
 
     /// <summary>Closure counts and mining-fee totals, grouped by type, over an optional [from, to] window.</summary>
     Task<ClosureStats> GetClosureStatsAsync(DateTime? from, DateTime? to, CancellationToken cancellationToken);

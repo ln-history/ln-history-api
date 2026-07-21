@@ -19,8 +19,8 @@ public class StatsService : IStatsService
     public Task<IReadOnlyList<NodeStat>> TopNodesAsync(NodeRankBy by, int limit, CancellationToken cancellationToken) =>
         _stats.TopNodesAsync(by, limit, cancellationToken);
 
-    public Task<NetworkStats> GetNetworkStatsAsync(DateTime? at, CancellationToken cancellationToken) =>
-        _stats.GetNetworkStatsAsync(at, cancellationToken);
+    public Task<NetworkStats> GetNetworkStatsAsync(DateTime? at, bool currentlyActive, CancellationToken cancellationToken) =>
+        _stats.GetNetworkStatsAsync(at, currentlyActive, cancellationToken);
 
     public Task<ClosureStats> GetClosureStatsAsync(DateTime? from, DateTime? to, CancellationToken cancellationToken) =>
         _stats.GetClosureStatsAsync(from, to, cancellationToken);

@@ -73,7 +73,7 @@ public class StatsController : ControllerBase
         if (!QueryHelpers.TryParseTime(timestamp, out var time))
             return Problem($"Invalid timestamp: '{timestamp}'.", statusCode: StatusCodes.Status400BadRequest);
 
-        var stats = await _stats.GetNetworkStatsAsync(time.AsOf, cancellationToken);
+        var stats = await _stats.GetNetworkStatsAsync(time.At, time.IsNow, cancellationToken);
         return Ok(stats.ToDto());
     }
 

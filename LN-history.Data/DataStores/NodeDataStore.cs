@@ -61,11 +61,18 @@ public class NodeDataStore : INodeDataStore
         return node;
     }
 
-    public async Task<Page<Node>> GetNodesAsync(DateTime? existedAt, int limit, int offset, CancellationToken cancellationToken)
+    /// <summary>A node is "currently active" if it was last seen within this window.</summary>
+    private const string ActiveWindow = "now() - interval '14 days'";
+
+    public async Task<Page<Node>> GetNodesAsync(DateTime? existedAt, bool currentlyActive, int limit, int offset, CancellationToken cancellationToken)
     {
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
 
-        var where = existedAt is null ? string.Empty : "WHERE first_seen <= @existedAt AND last_seen >= @existedAt";
+        var where = currentlyActive
+            ? $"WHERE last_seen >= {ActiveWindow}"
+            : existedAt is null
+                ? string.Empty
+                : "WHERE first_seen <= @existedAt AND last_seen >= @existedAt";
         var parameters = new { existedAt, limit, offset };
 
         var total = await connection.ExecuteScalarAsync<long>(new CommandDefinition(

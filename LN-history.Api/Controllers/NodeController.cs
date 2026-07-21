@@ -54,7 +54,7 @@ public class NodeController : ControllerBase
             return Problem($"Invalid timestamp: '{timestamp}'.", statusCode: StatusCodes.Status400BadRequest);
 
         var (clampedLimit, clampedOffset) = QueryHelpers.ClampPage(limit, offset);
-        var page = await _nodes.GetNodesAsync(time.AsOf, clampedLimit, clampedOffset, cancellationToken);
+        var page = await _nodes.GetNodesAsync(time.At, time.IsNow, clampedLimit, clampedOffset, cancellationToken);
         return Ok(page.ToDto(n => n.ToDto()));
     }
 

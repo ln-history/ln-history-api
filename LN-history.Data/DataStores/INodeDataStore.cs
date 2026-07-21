@@ -10,8 +10,11 @@ public interface INodeDataStore
     /// </summary>
     Task<Node?> GetByIdAsync(string nodeId, DateTime? asOf, bool includeAllTimeDegree, bool includeRawGossip, CancellationToken cancellationToken);
 
-    /// <summary>Paged list of nodes that existed at <paramref name="existedAt"/> (null = all nodes), with open degree and announcement count.</summary>
-    Task<Page<Node>> GetNodesAsync(DateTime? existedAt, int limit, int offset, CancellationToken cancellationToken);
+    /// <summary>
+    /// Paged list of nodes. <paramref name="currentlyActive"/> = nodes seen within the last 14 days
+    /// ("now"); else <paramref name="existedAt"/> = nodes that existed at that instant; else all nodes.
+    /// </summary>
+    Task<Page<Node>> GetNodesAsync(DateTime? existedAt, bool currentlyActive, int limit, int offset, CancellationToken cancellationToken);
 
     /// <summary>Full node_announcement chain for a node, ordered by valid_from, with addresses.</summary>
     Task<IReadOnlyList<NodeAnnouncement>> GetAnnouncementHistoryAsync(string nodeId, DateTime? until, bool includeRawGossip, CancellationToken cancellationToken);

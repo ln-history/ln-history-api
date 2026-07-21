@@ -85,23 +85,16 @@ public class StatsDataStore : IStatsDataStore
         return rows.ToList();
     }
 
-    public async Task<NetworkStats> GetNetworkStatsAsync(DateTime? at, CancellationToken cancellationToken)
+    public async Task<NetworkStats> GetNetworkStatsAsync(DateTime? at, bool currentlyActive, CancellationToken cancellationToken)
     {
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
 
         long nodeCount;
         NetworkChannelAgg channels;
 
-        if (at is null)
+        if (at is not null)
         {
-            nodeCount = await connection.ExecuteScalarAsync<long>(new CommandDefinition(
-                "SELECT count(*) FROM nodes", cancellationToken: cancellationToken));
-            channels = await connection.QuerySingleAsync<NetworkChannelAgg>(new CommandDefinition(
-                "SELECT count(*) AS channel_count, COALESCE(sum(capacity_sat), 0) AS total_capacity_sat FROM channels WHERE closing_timestamp IS NULL",
-                cancellationToken: cancellationToken));
-        }
-        else
-        {
+            // Point in time.
             nodeCount = await connection.ExecuteScalarAsync<long>(new CommandDefinition(
                 "SELECT count(*) FROM nodes WHERE first_seen <= @at AND last_seen >= @at", new { at }, cancellationToken: cancellationToken));
             channels = await connection.QuerySingleAsync<NetworkChannelAgg>(new CommandDefinition(
@@ -109,6 +102,17 @@ public class StatsDataStore : IStatsDataStore
                 SELECT count(*) AS channel_count, COALESCE(sum(capacity_sat), 0) AS total_capacity_sat
                 FROM channels WHERE funding_timestamp <= @at AND (closing_timestamp IS NULL OR closing_timestamp > @at)
                 """, new { at }, cancellationToken: cancellationToken));
+        }
+        else
+        {
+            // Current: "now" counts only nodes seen in the last 14 days; otherwise all nodes. Channels are those open now.
+            var nodeSql = currentlyActive
+                ? "SELECT count(*) FROM nodes WHERE last_seen >= now() - interval '14 days'"
+                : "SELECT count(*) FROM nodes";
+            nodeCount = await connection.ExecuteScalarAsync<long>(new CommandDefinition(nodeSql, cancellationToken: cancellationToken));
+            channels = await connection.QuerySingleAsync<NetworkChannelAgg>(new CommandDefinition(
+                "SELECT count(*) AS channel_count, COALESCE(sum(capacity_sat), 0) AS total_capacity_sat FROM channels WHERE closing_timestamp IS NULL",
+                cancellationToken: cancellationToken));
         }
 
         return new NetworkStats(at, nodeCount, channels.ChannelCount, channels.TotalCapacitySat);

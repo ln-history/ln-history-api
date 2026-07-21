@@ -9,7 +9,7 @@ public interface IStatsService
 
     Task<IReadOnlyList<NodeStat>> TopNodesAsync(NodeRankBy by, int limit, CancellationToken cancellationToken);
 
-    Task<NetworkStats> GetNetworkStatsAsync(DateTime? at, CancellationToken cancellationToken);
+    Task<NetworkStats> GetNetworkStatsAsync(DateTime? at, bool currentlyActive, CancellationToken cancellationToken);
 
     Task<ClosureStats> GetClosureStatsAsync(DateTime? from, DateTime? to, CancellationToken cancellationToken);
 }
