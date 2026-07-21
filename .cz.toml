@@ -1,0 +1,14 @@
+[tool.commitizen]
+name = "cz_conventional_commits"
+# Current application version. `cz bump` reads this, computes the next version from the
+# conventional-commit history, writes it back here, and syncs it into Directory.Build.props.
+version = "1.0.0"
+version_scheme = "semver"
+major_version_zero = false
+# Git tag == the plain version (e.g. 1.0.0), so it matches the Docker image tag directly.
+tag_format = "$version"
+update_changelog_on_bump = true
+# Keep the .NET build's version in lockstep with the commitizen version.
+version_files = [
+    "Directory.Build.props:<Version>",
+]

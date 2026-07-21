@@ -1,0 +1,22 @@
+<Project>
+
+  <!--
+    Global configuration for every project in the ln-history-api solution.
+    Single source of truth for:
+      * the target framework (.NET version)
+      * the application version  — bump with `cz bump` (see .cz.toml); used as the
+        container image tag by scripts/build-image.sh
+      * the container image repository
+    Per-project .csproj files no longer set <TargetFramework> or <Version>.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Version>1.0.0</Version>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Container">
+    <DockerImageRepository>ghcr.io/ln-history/ln-history-api</DockerImageRepository>
+  </PropertyGroup>
+
+</Project>
