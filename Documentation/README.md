@@ -176,3 +176,8 @@
 ## 
 - Update to dotnet 10
 - Fix vulnerable dependencies
+
+Fix chain-enricher:
+Make sure the chain-enricher cannot DDOS the database, if something breaks (connection to fulcrum or bitcoind or database) act gracefully
+When a channel gets closed the valid_to of its last channel_updates must be set
+Improve the closure types, that they use a separate ClosureTypes table with integers that then get used in the channel_closures table.

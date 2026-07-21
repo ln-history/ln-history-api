@@ -241,6 +241,14 @@ Rules:
 
 ## 12. Future work (out of scope now)
 
+- **`gossip-processor` must write `node_addresses.internal_id`** for new rows. The
+  2026-07-21 migration added + backfilled `internal_id` (integer join, ~950× faster
+  than the varchar `gossip_id`) and the address lookup now joins on it. But the writer
+  doesn't populate the column, so addresses ingested **after 2026-07-21** get
+  `internal_id = NULL` and won't resolve until the writer is updated (or a periodic
+  backfill from `gossip_inventory` runs). Same shape as the earlier `internal_id` writer bugs.
+- **Drop `node_addresses_old`** once the migration is confirmed good, then rename the
+  `idx_node_addresses_new_*` / `node_addresses_new_pkey` indexes to canonical names.
 - DB-side `ClosureTypes` lookup table (int→label) + `chain-enricher` update, so
   `closure_type` is normalized in the DB rather than mapped in the API.
 - Optional `node_channel_counts` aggregate to make all-time degree cheap.
