@@ -21,4 +21,9 @@
         <Using Include="NUnit.Framework"/>
     </ItemGroup>
 
+    <ItemGroup>
+        <ProjectReference Include="..\Bitcoin.Data\Bitcoin.Data.csproj" />
+        <ProjectReference Include="..\LN-History.Model\LN-History.Model.csproj" />
+    </ItemGroup>
+
 </Project>

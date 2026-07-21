@@ -1,15 +1,20 @@
+using System.Net.Http.Headers;
+using System.Text;
+using Bitcoin.Data.DataStores;
+using Bitcoin.Data.Rpc;
 using Bitcoin.Data.Settings;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace Bitcoin.Data;
 
 public static class ServiceCollectionExtension
 {
     /// <summary>
-    /// Registers Bitcoin Core JSON-RPC access. Binds the "Bitcoind" configuration
-    /// section (RPCHost/RPCPort/RPCUser/RPCPassword) to <see cref="BitcoinRpcSettings"/>.
-    /// The RPC client and block data store are added in a later phase.
+    /// Registers Bitcoin Core JSON-RPC access: binds the "Bitcoind" configuration section
+    /// (RPCHost/RPCPort/RPCUser/RPCPassword), a typed <see cref="BitcoinRpcClient"/> with HTTP
+    /// Basic auth, and the block data store.
     /// </summary>
     public static IServiceCollection AddBitcoinNode(this IServiceCollection services, IConfiguration configuration)
     {
@@ -26,6 +31,17 @@ public static class ServiceCollectionExtension
             options.RpcUser = section["RPCUser"] ?? string.Empty;
             options.RpcPassword = section["RPCPassword"] ?? string.Empty;
         });
+
+        services.AddHttpClient<IBitcoinRpcClient, BitcoinRpcClient>((serviceProvider, http) =>
+        {
+            var settings = serviceProvider.GetRequiredService<IOptions<BitcoinRpcSettings>>().Value;
+            http.BaseAddress = new Uri($"http://{settings.RpcHost}:{settings.RpcPort}/");
+            var credentials = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{settings.RpcUser}:{settings.RpcPassword}"));
+            http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", credentials);
+            http.Timeout = TimeSpan.FromSeconds(30);
+        });
+
+        services.AddScoped<IBlockDataStore, BlockDataStore>();
 
         return services;
     }
