@@ -173,5 +173,6 @@
 - /blocks/{DateTime} -> BlockDto
 
 
+## 
 - Update to dotnet 10
-- 
+- Fix vulnerable dependencies
