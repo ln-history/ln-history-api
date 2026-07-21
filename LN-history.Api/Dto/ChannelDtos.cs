@@ -55,6 +55,13 @@ public sealed class ChannelUpdateDto
     public byte[]? RawGossip { get; set; }
 }
 
+public sealed class ChannelCapacityDto
+{
+    public long Scid { get; set; }
+    public string ScidStr { get; set; } = string.Empty;
+    public long CapacitySat { get; set; }
+}
+
 public sealed class ChannelDto
 {
     public long Scid { get; set; }

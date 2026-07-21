@@ -84,6 +84,13 @@ public static class DomainToDtoMapper
         RawGossip = c.RawGossip
     };
 
+    public static ChannelCapacityDto ToDto(this ChannelCapacity c) => new()
+    {
+        Scid = c.Scid,
+        ScidStr = ScidStr(c.Scid),
+        CapacitySat = c.CapacitySat
+    };
+
     public static AddressDto ToDto(this Address a)
     {
         var info = AddressTypes.GetValueOrDefault(a.Type, (a.Type.ToString(), string.Empty));

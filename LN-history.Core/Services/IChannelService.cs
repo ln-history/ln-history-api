@@ -17,4 +17,7 @@ public interface IChannelService
     Task<IReadOnlyList<ChannelUpdate>> GetUpdateHistoryAsync(long scid, DateTime? until, bool includeRawGossip, CancellationToken cancellationToken);
 
     Task<byte[]> GetChannelHistoryRawAsync(long scid, DateTime? until, CancellationToken cancellationToken);
+
+    /// <summary>scid + capacity_sat for all channels matching the open/at-T/all selection (for graph construction).</summary>
+    Task<IReadOnlyList<ChannelCapacity>> GetCapacitiesAsync(DateTime? openAt, bool currentlyOpen, CancellationToken cancellationToken);
 }

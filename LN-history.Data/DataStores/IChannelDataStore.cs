@@ -21,4 +21,10 @@ public interface IChannelDataStore
 
     /// <summary>True if a channel with this scid exists.</summary>
     Task<bool> ExistsAsync(long scid, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// scid + capacity_sat for every channel matching the open/at-T/all selection (no pagination).
+    /// <paramref name="openAt"/> = open at that instant; else <paramref name="currentlyOpen"/> = closing_timestamp IS NULL; else all.
+    /// </summary>
+    Task<IReadOnlyList<ChannelCapacity>> GetCapacitiesAsync(DateTime? openAt, bool currentlyOpen, CancellationToken cancellationToken);
 }

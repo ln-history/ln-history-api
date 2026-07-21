@@ -53,4 +53,7 @@ public class ChannelService : IChannelService
 
     public Task<byte[]> GetChannelHistoryRawAsync(long scid, DateTime? until, CancellationToken cancellationToken) =>
         _channels.GetHistoryRawAsync(scid, until, cancellationToken);
+
+    public Task<IReadOnlyList<ChannelCapacity>> GetCapacitiesAsync(DateTime? openAt, bool currentlyOpen, CancellationToken cancellationToken) =>
+        _channels.GetCapacitiesAsync(openAt, currentlyOpen, cancellationToken);
 }

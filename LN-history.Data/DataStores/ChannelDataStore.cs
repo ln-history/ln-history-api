@@ -193,4 +193,26 @@ public class ChannelDataStore : IChannelDataStore
         return await connection.ExecuteScalarAsync<bool>(
             new CommandDefinition("SELECT EXISTS(SELECT 1 FROM channels WHERE scid = @scid)", new { scid }, cancellationToken: cancellationToken));
     }
+
+    public async Task<IReadOnlyList<ChannelCapacity>> GetCapacitiesAsync(DateTime? openAt, bool currentlyOpen, CancellationToken cancellationToken)
+    {
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+
+        var clauses = new List<string> { "scid IS NOT NULL" };
+        var parameters = new DynamicParameters();
+
+        if (openAt is { } at)
+        {
+            clauses.Add("funding_timestamp <= @openAt AND (closing_timestamp IS NULL OR closing_timestamp > @openAt)");
+            parameters.Add("openAt", at);
+        }
+        else if (currentlyOpen)
+        {
+            clauses.Add("closing_timestamp IS NULL");
+        }
+
+        var sql = $"SELECT scid, COALESCE(capacity_sat, 0) AS capacity_sat FROM channels WHERE {string.Join(" AND ", clauses)}";
+        var rows = await connection.QueryAsync<ChannelCapacity>(new CommandDefinition(sql, parameters, cancellationToken: cancellationToken));
+        return rows.ToList();
+    }
 }

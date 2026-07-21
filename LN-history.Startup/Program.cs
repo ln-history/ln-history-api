@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using Asp.Versioning;
 using Bitcoin.Data;
+using Microsoft.AspNetCore.HttpOverrides;
 using LN_history.Api;
 using LN_history.Api.Instrumentation;
 using LN_history.Api.SimpleApiKeyMiddleware;
@@ -95,6 +96,17 @@ builder.Services.AddSwaggerGen(opt =>
 });
 
 var app = builder.Build();
+
+// Behind the nginx reverse proxy (TLS terminated there): honor X-Forwarded-* so the app
+// sees the real client scheme/IP. KnownProxies/KnownNetworks are cleared because the proxy
+// sits on a private docker network and the API is not directly exposed to the internet.
+var forwardedHeadersOptions = new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+};
+forwardedHeadersOptions.KnownNetworks.Clear();
+forwardedHeadersOptions.KnownProxies.Clear();
+app.UseForwardedHeaders(forwardedHeadersOptions);
 
 if (app.Configuration.GetValue<bool>("ApiKeyMiddleware:Enabled"))
 {

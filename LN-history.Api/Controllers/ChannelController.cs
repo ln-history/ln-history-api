@@ -59,6 +59,23 @@ public class ChannelController : ControllerBase
         return Ok(page.ToDto(c => c.ToDto()));
     }
 
+    /// <summary>
+    /// scid + capacity_sat for every channel open at a timestamp (no timestamp = all channels,
+    /// "now" = currently open). Lightweight companion to the snapshot for reconstructing the graph,
+    /// since channel_announcement gossip carries no capacity.
+    /// </summary>
+    [HttpGet("capacities")]
+    public async Task<IActionResult> GetChannelCapacities(
+        [FromQuery(Name = "timestamp")] string? timestamp = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (!QueryHelpers.TryParseTime(timestamp, out var time))
+            return Problem($"Invalid timestamp: '{timestamp}'.", statusCode: StatusCodes.Status400BadRequest);
+
+        var capacities = await _channels.GetCapacitiesAsync(time.At, time.IsNow, cancellationToken);
+        return Ok(capacities.Select(c => c.ToDto()));
+    }
+
     /// <summary>Channel update history. raw=true returns concatenated raw gossip; raw=false the update chain.</summary>
     [HttpGet("{scid}/history")]
     public async Task<IActionResult> GetChannelHistory(
