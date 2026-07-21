@@ -15,6 +15,10 @@
     </ItemGroup>
 
     <ItemGroup>
+      <Using Include="Microsoft.AspNetCore.Http" />
+    </ItemGroup>
+
+    <ItemGroup>
       <ProjectReference Include="..\LN-history.Core\LN-history.Core.csproj" />
       <ProjectReference Include="..\LN-History.Model\LN-History.Model.csproj" />
     </ItemGroup>

@@ -38,12 +38,13 @@ builder.Services.AddApiServices();
 // --- MVC / JSON ---
 builder.Services
     .AddControllers()
+    .AddApplicationPart(typeof(LN_history.Api.Controllers.ChannelController).Assembly)
     .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.SnakeCaseLower;
         options.JsonSerializerOptions.DictionaryKeyPolicy = System.Text.Json.JsonNamingPolicy.SnakeCaseLower;
         options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter(System.Text.Json.JsonNamingPolicy.SnakeCaseLower));
-        options.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
+        // Expansion/raw fields stay present as null unless requested (stable schema), so do NOT ignore nulls.
     });
 
 builder.Services.AddEndpointsApiExplorer();

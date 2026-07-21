@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 
@@ -16,27 +17,39 @@ public class SimpleApiKeyMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
-        // Skip API key check for Swagger
+        // Swagger is always reachable.
         if (context.Request.Path.StartsWithSegments("/swagger"))
         {
             await _next(context);
             return;
         }
-        
+
         if (!context.Request.Headers.TryGetValue("x-api-key", out var extractedApiKey))
         {
-            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-            await context.Response.WriteAsync("API Key is missing");
+            await WriteProblemAsync(context, "API key is missing.");
             return;
         }
 
         if (extractedApiKey != _apiKey)
         {
-            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-            await context.Response.WriteAsync("Invalid API Key");
+            await WriteProblemAsync(context, "Invalid API key.");
             return;
         }
 
         await _next(context);
+    }
+
+    private static async Task WriteProblemAsync(HttpContext context, string detail)
+    {
+        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+        context.Response.ContentType = "application/problem+json";
+        var problem = new
+        {
+            type = "https://tools.ietf.org/html/rfc9110#section-15.5.2",
+            title = "Unauthorized",
+            status = StatusCodes.Status401Unauthorized,
+            detail
+        };
+        await context.Response.WriteAsync(JsonSerializer.Serialize(problem));
     }
 }
