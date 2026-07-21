@@ -22,4 +22,4 @@ public interface IBitcoinRpcClient
 }
 
 /// <summary>Public projection of the block fields the API exposes.</summary>
-public sealed record BlockSummary(string Hash, long Height, long TimeUnix, long SizeBytes, long SubsidySat, long TotalFeeSat);
+public sealed record BlockSummary(string Hash, long Height, long TimeUnix, long SizeBytes, long SubsidySat, long TotalFeeSat, long TxCount);

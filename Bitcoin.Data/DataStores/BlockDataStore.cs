@@ -67,7 +67,8 @@ public class BlockDataStore : IBlockDataStore
         Timestamp = DateTimeOffset.FromUnixTimeSeconds(s.TimeUnix).UtcDateTime,
         SpaceBytes = s.SizeBytes,
         SubsidySat = s.SubsidySat,
-        TxFees = s.TotalFeeSat
+        TxFees = s.TotalFeeSat,
+        TxCount = (int)s.TxCount
     };
 
     private static long ToUnixSeconds(DateTime timestamp)

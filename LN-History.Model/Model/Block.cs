@@ -17,4 +17,7 @@ public class Block
 
     /// <summary>Total transaction fees in the block, in satoshis.</summary>
     public long TxFees { get; set; }
+
+    /// <summary>Number of transactions in the block.</summary>
+    public int TxCount { get; set; }
 }

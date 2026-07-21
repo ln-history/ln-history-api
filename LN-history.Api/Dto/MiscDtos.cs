@@ -10,6 +10,7 @@ public sealed class BlockDto
     public long SpaceBytes { get; set; }
     public long SubsidySat { get; set; }
     public long TxFees { get; set; }
+    public int TxCount { get; set; }
 }
 
 /// <summary>A single chronological event in a snapshot diff. <see cref="Data"/> is a

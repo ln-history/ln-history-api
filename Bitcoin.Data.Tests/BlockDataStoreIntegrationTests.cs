@@ -19,6 +19,7 @@ public class BlockDataStoreIntegrationTests
     private const long TxFees = 13687680;
     private const long SizeBytes = 1634261;
     private const long TimeUnix = 1690168629;
+    private const int TxCount = 3721;
 
     private BlockDataStore _store = null!;
     private HttpClient _http = null!;
@@ -59,6 +60,7 @@ public class BlockDataStoreIntegrationTests
             Assert.That(block.SubsidySat, Is.EqualTo(SubsidySat));
             Assert.That(block.TxFees, Is.EqualTo(TxFees));
             Assert.That(block.SpaceBytes, Is.EqualTo(SizeBytes));
+            Assert.That(block.TxCount, Is.EqualTo(TxCount));
             Assert.That(block.Timestamp, Is.EqualTo(DateTimeOffset.FromUnixTimeSeconds(TimeUnix).UtcDateTime));
         });
     }

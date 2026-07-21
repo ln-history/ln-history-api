@@ -128,7 +128,8 @@ public static class DomainToDtoMapper
         Timestamp = b.Timestamp,
         SpaceBytes = b.SpaceBytes,
         SubsidySat = b.SubsidySat,
-        TxFees = b.TxFees
+        TxFees = b.TxFees,
+        TxCount = b.TxCount
     };
 
     public static GossipEventDto ToDto(this GossipEvent e) => new()

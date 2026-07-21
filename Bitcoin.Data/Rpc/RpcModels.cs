@@ -41,4 +41,7 @@ internal sealed class BlockStats
 
     [JsonPropertyName("totalfee")]
     public long Totalfee { get; set; }
+
+    [JsonPropertyName("txs")]
+    public long Txs { get; set; }
 }

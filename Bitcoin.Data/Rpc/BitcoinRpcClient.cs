@@ -9,7 +9,7 @@ public class BitcoinRpcClient : IBitcoinRpcClient
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     private static readonly object[] StatsFields =
-        { "blockhash", "height", "time", "total_size", "subsidy", "totalfee" };
+        { "blockhash", "height", "time", "total_size", "subsidy", "totalfee", "txs" };
 
     public BitcoinRpcClient(HttpClient http)
     {
@@ -46,7 +46,7 @@ public class BitcoinRpcClient : IBitcoinRpcClient
         if (result is not { } element) return null;
 
         var stats = element.Deserialize<BlockStats>(JsonOptions)!;
-        return new BlockSummary(stats.Blockhash, stats.Height, stats.Time, stats.TotalSize, stats.Subsidy, stats.Totalfee);
+        return new BlockSummary(stats.Blockhash, stats.Height, stats.Time, stats.TotalSize, stats.Subsidy, stats.Totalfee, stats.Txs);
     }
 
     public async Task<byte[]?> GetRawTransactionAsync(string txid, CancellationToken cancellationToken)
