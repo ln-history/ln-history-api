@@ -7,9 +7,4 @@
         <Nullable>enable</Nullable>
     </PropertyGroup>
 
-    <ItemGroup>
-      <ProjectReference Include="..\LightningGraph\LightningGraph.csproj" />
-      <ProjectReference Include="..\LN-history.Data\LN-history.Data.csproj" />
-    </ItemGroup>
-
 </Project>

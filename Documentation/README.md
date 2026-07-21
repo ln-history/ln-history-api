@@ -1,102 +1,177 @@
-# Lightning Network History
+# ln-history-api
 
-This Project connects to a QuestDb (Postgres-SQL) database that has three tables containing all gossip messages of the Lightning Network.
-For more information about gossip messages look under the specification [BOLT-07](https://github.com/lightning/bolts/blob/master/07-routing-gossip.md).
+## API
 
-The data has been taken from [this](https://github.com/lnresearch/topology) repository.
+### Model / DTOs
 
-The whole project has been inspired by Christian Decker.
+#### FeePolicyDto
+```json
+{
+	cltv_expiry_delta: int,
+	channel_flags: str,
+	fee_base_msat: long,
+	fee_proportional_millionths: long,
+	htlc_minimum_msat: long,
+	htlc_maximum_msat: long | null,
+}
+```
 
-## Model for graph
+#### ChannelUpdateDto
+```json
+{
+	scid: int,
+	scid_str: str,
+	direction: boolean,
+	source_node_id: str,
+	target_node_id: str,
+	valid_from: DateTime,
+	valid_to: DateTime,
+	fee_policy: FeePolicyDto,
+	timestamp: DateTime,
+	message_flags: str,
+	is_topology_update: boolean,
+	is_fee_update: boolean,
+	gossip_id: str,
+	internal_id: int,
+	raw_bytes: bytes[] | null
+}
+```
+
+#### ChannelClosureDto
+```json
+{
+	scid: int,
+	scid_str: str,
+	closure_type: ClosureType,
+	mining_fee: int,
+	txid: str,
+	tx: bytes[] | null
+}
+```
+
+
+#### ChannelDto
+```json
+{
+	scid: int,
+	scid_str: str,
+	funding_timestamp: DateTime,
+	closing_timestamp: DateTime | null,
+	closing_information: ChannelClosureDto,
+	capacity_sat: int,
+	node_id_1: str | NodeDto,
+	node_id_2: str | NodeDto,
+	fee_policies: 
+		{
+			"0": 
+				{
+					fee_policy: FeePolicyDto,
+					total_update_count: int
+				},
+			"1": 
+				{
+					fee_policy: FeePolicyDto,
+					total_update_count: int	
+				}
+		},
+	gossip_id: str,
+	internal_id: int,
+	raw_bytes: bytes[] | null
+}
+```
+
+#### AddressTypeDto
+```json
+{
+	id: int,
+	name: str,
+	description: str
+}
+```
+
+#### AddressDto
+```json
+{
+	id: int,
+	network: AddressTypeDto,
+	address: str,
+	port: str
+}
+```
+
+#### NodeAnnouncementDto
+```json
+{
+	node_id: str,
+	alias: str,
+	rgb_color: str,
+	features: str,
+	addresses: AddressDto[],
+	timestamp: DateTime,
+	is_data_update: boolean,
+	gossip_id: str,
+	internal_id: int,
+	raw_gossip: bytes[]
+}
+```
+
+#### NodeDto
+```json
+{
+	node_id: str,
+	first_seen: DateTime,
+	last_seen: DateTime,
+	number_of_channels: int,
+	number_of_announcements: int,
+	announcements: NodeAnnouncementDto
+}
+```
+
+#### BlockDto
+```json
+{
+	block_hash: str,
+	block_height: int,
+	timestamp: DateTime,
+	space_bytes: int,
+	subsidy_sat: int,
+	tx_fees: int
+}
+```
+
+
+#### PeerDto
+```json
+{
+	
+}
+```
+
+## Controller 
+
+### LightningNetwork
+- /snapshot/{DateTime}?withUpdates={boolean} -> bytes[] (All gossip valid at DateTime
+- /snapshot-diff/{startDateTime}/{endDateTime}?rawGossip={boolean} -> raw_gossip that happened between startDateTime and endDateTime
+
+### Channel
+- /channels/{DateTime} -> ChannelDto[]
+- /channels/{scid:str}?nodeInformation={boolean}&raw_gossip={boolean}&timestamp={DateTime}  -> ChannelDto
+- /channel/{scid:int}?nodeInformation={boolean}&raw_gossip={boolean}&timestamp={DateTime} -> ChannelDto
+- /channel/history/{scid}?raw=true&timestamp={DateTime} -> bytes[]
+- /channel/history/{scid}?raw=false&timestamp={DateTime} ->  ChannelDto and `fee_policy` is FeePolicyDto[]
+- /channels/{node_id}?raw_gossip={true/false}&timestamp={DateTime} -> ChannelDto[]
 
 ### Node
-```
-    public string NodeId { get; set; }
-    public string Features { get; set; }
-    public DateTime Timestamp { get; set; }
-    public string RgbColor { get; set; }
-    public string Addresses { get; set; }
-```
+- /nodes/{node_id} -> NodeDto[]
+- /nodes/history/{node_id}?raw=false -> NodeDto[]
+- /nodes/history/{node_id}?raw=true -> bytes[]
+- /nodes/{DateTime}
 
-### Edge
-```
-    public string Scid { get; set; }
-    public string Features { get; set; }
-    public string NodeId1 { get; set; }
-    public string NodeId2 { get; set; }
-    public DateTime Timestamp { get; set; }
-    public string MessageFlags { get; set; }
-    public string ChannelFlags { get; set; }
-    public long CltvExpiryDelta { get; set; }
-    public long HtlcMinimumMSat { get; set; }
-    public long HtlcMaximumMSat { get; set; }
-    public long FeeBaseMSat { get; set; }
-    public long FeeProportionalMillionths { get; set; }
-    public string ChainHash { get; set; }
-```
+### Bitcoin
+- /blocks/{blockHash} -> BlockDto
+- /blocks/{blockHeight} -> BlockDto
+- /blocks/{DateTime} -> BlockDto
 
-## Data
-The model of the gossip messages looks like the following:
 
-- `node_announcement` message:
-```
-CREATE TABLE node_announcements (
-    node_id STRING,
-    features STRING,
-    timestamp TIMESTAMP,
-    rgb_color STRING,
-    addresses STRING
-) TIMESTAMP(timestamp);
-```
-- `channel_announcement` message:
-```
-CREATE TABLE channel_announcements (
-    scid STRING,
-    features STRING,
-    node_id_1 STRING,
-    node_id_2 STRING,
-    chain_hash STRING
-);
-```
-- `channel_update` message:
-```
-CREATE TABLE channel_updates (
-    scid STRING,
-    timestamp TIMESTAMP,
-    message_flags STRING,
-    channel_flags STRING,
-    cltv_expiry_delta BIGINT,
-    htlc_minimum_msat BIGINT,
-    fee_base_msat BIGINT,
-    fee_proportional_millionths BIGINT,
-    htlc_maximum_msat BIGINT,
-    chain_hash STRING
-) TIMESTAMP(timestamp);
-```
-
-## Development
-
-You need to add the `appsettings.Development.json` file adding the endpoint of your QuestDb database in the following section:
-```
-"ConnectionStrings": {
-    "QuestDb": "https://YOUR-URL.com:9000;username=YOUR-USERNAME;password=YOUR-PASSWORD"
-  },
-```
-
-## License
-
-```
-Copyright 2024 Fabian Kraus
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-   https://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-```
+- Update to dotnet 10
+- 

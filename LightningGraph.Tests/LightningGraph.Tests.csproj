@@ -23,8 +23,4 @@
         <Using Include="NUnit.Framework"/>
     </ItemGroup>
 
-    <ItemGroup>
-      <ProjectReference Include="..\LightningGraph\LightningGraph.csproj" />
-    </ItemGroup>
-
 </Project>

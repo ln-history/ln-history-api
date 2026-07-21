@@ -1,6 +1,4 @@
-﻿using LightningGraph.Core;
-
-namespace LN_history.Cache.Services;
+﻿namespace LN_history.Cache.Services;
 
 public interface ICacheService
 {

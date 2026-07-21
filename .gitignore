@@ -6,3 +6,6 @@ riderModule.iml
 LN-history.sln.DotSettings
 LN-history.sln.DotSettings.user
 .idea
+.DS_Store
+
+*.DotSettings.user

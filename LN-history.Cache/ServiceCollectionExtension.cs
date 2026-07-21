@@ -1,5 +1,4 @@
-﻿using LightningGraph.Serialization;
-using LN_history.Cache.Services;
+﻿using LN_history.Cache.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Minio;
