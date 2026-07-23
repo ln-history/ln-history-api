@@ -1,21 +1,14 @@
-using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LN_history.Api;
 
 public static class ServiceCollectionExtension
 {
-    public static IServiceCollection AddApiServices(this IServiceCollection serviceCollection,
-        Assembly?[]? assembliesWithMappingProfile = null)
+    /// <summary>
+    /// Registers API-layer services (DTO mappers are registered here as they are added).
+    /// </summary>
+    public static IServiceCollection AddApiServices(this IServiceCollection services)
     {
-        serviceCollection.AddAutoMapper(opt =>
-        {
-            if (assembliesWithMappingProfile != null)
-            {
-                opt.AddMaps(assembliesWithMappingProfile);
-            }
-        });
-        
-        return serviceCollection;
+        return services;
     }
 }

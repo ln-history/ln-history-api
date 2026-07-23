@@ -1,41 +1,27 @@
-using System.Reflection;
+using System.Text.Json.Serialization;
 using Asp.Versioning;
-using Bitcoin.Core;
 using Bitcoin.Data;
-using Dapper.FluentMap;
-using Dapper.FluentMap.Dommel;
+using Microsoft.AspNetCore.HttpOverrides;
 using LN_history.Api;
-using LN_history.Api.ApiKeyMiddleware;
 using LN_history.Api.Instrumentation;
-using LN_history.Api.Mapping;
 using LN_history.Api.SimpleApiKeyMiddleware;
-using LN_history.Api.v1.Controllers;
-using LN_history.Cache;
 using LN_history.Core;
-using LN_history.Core.Services;
 using LN_history.Data;
-using LN_history.Data.Configuration;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Formatters;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
-
-using OpenTelemetry.Metrics;
 using OpenTelemetry.Logs;
+using OpenTelemetry.Metrics;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. Register your metrics class
+// --- Observability ---
 builder.Services.AddSingleton<AppMetrics>();
 
 builder.Services.AddOpenTelemetry()
     .WithMetrics(metrics => metrics
-        .AddAspNetCoreInstrumentation() // Auto-track HTTP requests
-        .AddRuntimeInstrumentation()    // Auto-track CPU/Memory/GC
-        .AddOtlpExporter()              // Send to Collector
-        .AddMeter(AppMetrics.MeterName) 
-        .AddOtlpExporter()
-    );            
+        .AddAspNetCoreInstrumentation()
+        .AddRuntimeInstrumentation()
+        .AddMeter(AppMetrics.MeterName)
+        .AddOtlpExporter());
 
 builder.Logging.AddOpenTelemetry(options =>
 {
@@ -44,59 +30,22 @@ builder.Logging.AddOpenTelemetry(options =>
     options.AddOtlpExporter();
 });
 
-var apiKey = builder.Configuration["ApiKey"];
-var trackUsage = builder.Configuration.GetValue<bool>("ApiKeyMiddleware:Enabled");
-
+// --- Layers ---
 builder.Services.AddLnHistoryDatabase(builder.Configuration);
-
-// builder.Services.AddBitcoinBlocks(builder.Configuration);
-
-// Only add SQLite + middleware if tracking is enabled
-// if (trackUsage)
-// {
-//     builder.Services.AddDbContext<ApiKeyDbContext>(options =>
-//         options.UseSqlite(builder.Configuration.GetConnectionString("ApiKeyDatabase")));
-// }
-
-FluentMapper.Initialize(configuration =>
-{
-    configuration.AddMap(new NodeEntityMap());
-    configuration.AddMap(new ChannelEntityMap());
-    configuration.ForDommel();
-});
-
-// builder.Services.AddCaching(builder.Configuration);
-
+builder.Services.AddBitcoinNode(builder.Configuration);
 builder.Services.AddLightningNetworkServices(builder.Configuration);
-// builder.Services.AddBitcoinServices();
+builder.Services.AddApiServices();
 
-builder.Services.AddApiServices(
-    [Assembly.GetAssembly(typeof(LightningNetworkController)), Assembly.GetAssembly(typeof(LightningNetworkController))]
-);
-
-builder.Services.AddAutoMapper(typeof(LightningNodeMappingProfile));
-builder.Services.AddAutoMapper(typeof(LightningChannelMappingProfile));
-
-
-builder.Services.AddSwaggerGenNewtonsoftSupport();
+// --- MVC / JSON ---
 builder.Services
-    .AddControllers(opt =>
+    .AddControllers()
+    .AddApplicationPart(typeof(LN_history.Api.Controllers.ChannelController).Assembly)
+    .AddJsonOptions(options =>
     {
-        var noContentFormatter = opt.OutputFormatters.OfType<HttpNoContentOutputFormatter>().FirstOrDefault();
-        if (noContentFormatter != null)
-        {
-            noContentFormatter.TreatNullValueAsNoContent = false;
-        }
-    }).AddNewtonsoftJson().ConfigureApiBehaviorOptions(options =>
-    {
-        options.InvalidModelStateResponseFactory = context =>
-        {
-            var problemDetails = new ValidationProblemDetails(context.ModelState)
-            {
-                Status = StatusCodes.Status400BadRequest,
-            };
-            return new BadRequestObjectResult(problemDetails);
-        };
+        options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.SnakeCaseLower;
+        options.JsonSerializerOptions.DictionaryKeyPolicy = System.Text.Json.JsonNamingPolicy.SnakeCaseLower;
+        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter(System.Text.Json.JsonNamingPolicy.SnakeCaseLower));
+        // Expansion/raw fields stay present as null unless requested (stable schema), so do NOT ignore nulls.
     });
 
 builder.Services.AddEndpointsApiExplorer();
@@ -110,36 +59,22 @@ builder.Services.AddApiVersioning(options =>
             new UrlSegmentApiVersionReader(),
             new HeaderApiVersionReader("X-Api-Version"));
     })
-    .AddMvc() // This is needed for controllers
+    .AddMvc()
     .AddApiExplorer(options =>
     {
         options.GroupNameFormat = "'v'V";
         options.SubstituteApiVersionInUrl = true;
     });
 
-// Add services to the container.
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
-builder.Services.AddEndpointsApiExplorer();
-// Configure Swagger
 builder.Services.AddSwaggerGen(opt =>
 {
-    // Create separate Swagger specs for v1
-    opt.SwaggerDoc("v1",
-        new OpenApiInfo
-        {
-            Title = "Lightning Network History",
-            Description = "Queries a PostgreSQL database 'ln-history-database' that stores the data on a SSD", Version = "v1"
-        });
-
-    // Include XML comments
-    var assemblies = new[] { Assembly.GetAssembly(typeof(NodeService)), Assembly.GetAssembly(typeof(LightningNetworkController)) };
-    foreach (var assembly in assemblies)
+    opt.SwaggerDoc("v1", new OpenApiInfo
     {
-        var xmlFileName = $"{assembly!.GetName().Name}.xml";
-        opt.IncludeXmlComments(Path.Combine(AppContext.BaseDirectory, xmlFileName));
-    }
+        Title = "Lightning Network History",
+        Description = "Queries the ln-history PostgreSQL database and a Bitcoin Core node.",
+        Version = "v1"
+    });
 
-    // Security definition (if applicable to both versions)
     opt.AddSecurityDefinition("ApiKey", new OpenApiSecurityScheme
     {
         Name = "x-api-key",
@@ -152,11 +87,7 @@ builder.Services.AddSwaggerGen(opt =>
         {
             new OpenApiSecurityScheme
             {
-                Reference = new OpenApiReference
-                {
-                    Type = ReferenceType.SecurityScheme,
-                    Id = "ApiKey"
-                },
+                Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "ApiKey" },
                 In = ParameterLocation.Header
             },
             Array.Empty<string>()
@@ -164,25 +95,26 @@ builder.Services.AddSwaggerGen(opt =>
     });
 });
 
-
 var app = builder.Build();
 
-// Add usage tracking middleware if enabled
-// if (trackUsage)
-// {
-//     app.UseMiddleware<ApiKeyTrackingMiddleware>();
-// }
-// else
-// {
-app.UseMiddleware<SimpleApiKeyMiddleware>();
-// }
+// Behind the nginx reverse proxy (TLS terminated there): honor X-Forwarded-* so the app
+// sees the real client scheme/IP. KnownProxies/KnownNetworks are cleared because the proxy
+// sits on a private docker network and the API is not directly exposed to the internet.
+var forwardedHeadersOptions = new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+};
+forwardedHeadersOptions.KnownNetworks.Clear();
+forwardedHeadersOptions.KnownProxies.Clear();
+app.UseForwardedHeaders(forwardedHeadersOptions);
+
+if (app.Configuration.GetValue<bool>("ApiKeyMiddleware:Enabled"))
+{
+    app.UseMiddleware<SimpleApiKeyMiddleware>();
+}
 
 app.UseRouting();
-
-app.UseEndpoints(endpoints =>
-{
-    endpoints.MapControllers();
-});
+app.MapControllers();
 
 app.UseSwagger();
 app.UseSwaggerUI(options =>
@@ -190,8 +122,5 @@ app.UseSwaggerUI(options =>
     options.DocumentTitle = "Lightning Network History";
     options.SwaggerEndpoint("/swagger/v1/swagger.json", "LN-history API V1");
 });
-
-
-app.UseHttpsRedirection();
 
 app.Run();

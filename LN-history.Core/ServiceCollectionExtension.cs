@@ -6,20 +6,18 @@ namespace LN_history.Core;
 
 public static class ServiceCollectionExtension
 {
-    public static void AddLightningNetworkServices(this IServiceCollection serviceCollection, IConfiguration configuration)
+    /// <summary>
+    /// Registers Core-layer services (channel, node, snapshot, block, stats) that orchestrate
+    /// the data stores and Bitcoin RPC access.
+    /// </summary>
+    public static IServiceCollection AddLightningNetworkServices(this IServiceCollection services, IConfiguration configuration)
     {
-        // Retrieve bucket name from configuration if not existing use "lightning-fast-graph-topology"
-        // var defaultBucketName = configuration.GetSection("MinIO:BucketNameLightningFastGraphTopology").Value 
-                                // ?? "lightning-fast-graph-topology";
+        services.AddScoped<IChannelService, ChannelService>();
+        services.AddScoped<INodeService, NodeService>();
+        services.AddScoped<ISnapshotService, SnapshotService>();
+        services.AddScoped<IBlockService, BlockService>();
+        services.AddScoped<IStatsService, StatsService>();
 
-        // Register the bucket name as an option
-        // serviceCollection.Configure<LightningNetworkServiceOptions>(options =>
-        // {
-        //     options.BucketName = defaultBucketName;
-        // });
-        
-        serviceCollection.AddScoped<INetworkSnapshotService, NetworkSnapshotService>();
-        serviceCollection.AddScoped<IChannelService, ChannelService>();
-        serviceCollection.AddScoped<INodeService, NodeService>();
+        return services;
     }
 }

@@ -1,8 +1,7 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         <OutputType>Library</OutputType>
-        <TargetFramework>net8.0</TargetFramework>
         <RootNamespace>LN_history.Api</RootNamespace>
         <ImplicitUsings>enable</ImplicitUsings>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
@@ -11,31 +10,29 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\Bitcoin.Core\Bitcoin.Core.csproj" />
+      <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Using Include="Microsoft.AspNetCore.Http" />
+    </ItemGroup>
+
+    <ItemGroup>
       <ProjectReference Include="..\LN-history.Core\LN-history.Core.csproj" />
+      <ProjectReference Include="..\LN-History.Model\LN-History.Model.csproj" />
     </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Include="Asp.Versioning.Http" Version="8.1.0" />
-      <PackageReference Include="Asp.Versioning.Mvc" Version="8.1.0" />
-      <PackageReference Include="Asp.Versioning.Mvc.ApiExplorer" Version="8.1.0" />
-      <PackageReference Include="AutoMapper" Version="13.0.1" />
-      <PackageReference Include="JetBrains.Annotations" Version="2024.3.0" />
-      <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.10" />
-      <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.10">
-        <PrivateAssets>all</PrivateAssets>
-        <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-      </PackageReference>
-      <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" />
-      <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.2" />
-      <PackageReference Include="OpenTelemetry" Version="1.14.0" />
-      <PackageReference Include="OpenTelemetry.Exporter.Console" Version="1.14.0" />
-      <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.14.0" />
-      <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.14.0" />
-    </ItemGroup>
-
-    <ItemGroup>
-      <Folder Include="v1\" />
+      <PackageReference Include="Asp.Versioning.Http" Version="10.0.0" />
+      <PackageReference Include="Asp.Versioning.Mvc" Version="10.0.0" />
+      <PackageReference Include="Asp.Versioning.Mvc.ApiExplorer" Version="10.0.0" />
+      <PackageReference Include="JetBrains.Annotations" Version="2026.2.0" />
+      <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.10" />
+      <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.10" />
+      <PackageReference Include="OpenTelemetry" Version="1.17.0" />
+      <PackageReference Include="OpenTelemetry.Exporter.Console" Version="1.17.0" />
+      <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.17.0" />
+      <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.17.0" />
     </ItemGroup>
 
 </Project>
