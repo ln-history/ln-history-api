@@ -99,6 +99,7 @@ public class GossipStreamController : ControllerBase
                     // The backfill query counts as a heavy request, same as snapshot/diff: one at a time per key.
                     if (!_access.TryAcquireHeavy(record))
                     {
+                        ApiKeyContext.SetCharge(HttpContext, BackfillRouteKey, 0, "concurrency_exceeded");
                         await socket.CloseAsync(WebSocketCloseStatus.PolicyViolation,
                             "another heavy request is running", CancellationToken.None);
                         return;
@@ -107,6 +108,13 @@ public class GossipStreamController : ControllerBase
 
                     var weight = _access.ResolveWeight(BackfillRouteKey, BackfillDefaultWeight);
                     var charge = _access.Charge(record, weight);
+                    ApiKeyContext.SetCharge(HttpContext, BackfillRouteKey, charge.Allowed ? weight : 0,
+                        charge.Outcome switch
+                        {
+                            ChargeOutcome.Allowed => "allowed",
+                            ChargeOutcome.BurstExceeded => "burst_exceeded",
+                            _ => "budget_exceeded",
+                        });
                     if (!charge.Allowed)
                     {
                         await socket.CloseAsync(WebSocketCloseStatus.PolicyViolation,
@@ -151,6 +159,7 @@ public class GossipStreamController : ControllerBase
                     foreach (var frame in backlog)
                     {
                         await SendAsync(socket, frame.RawGossip, token);
+                        ApiKeyContext.AddStreamBytes(HttpContext, frame.RawGossip.Length);
                         lastSent = frame.InternalId;
                     }
                 }
@@ -166,6 +175,7 @@ public class GossipStreamController : ControllerBase
                 {
                     if (frame.InternalId <= seam) continue; // already delivered by the backfill above
                     await SendAsync(socket, frame.RawGossip, token);
+                    ApiKeyContext.AddStreamBytes(HttpContext, frame.RawGossip.Length);
                 }
             }
             catch (OperationCanceledException)

@@ -1,7 +1,9 @@
 using Dapper;
 using LN_history.Data.Internal;
+using System.Net;
 using LN_History.Model;
 using Npgsql;
+using NpgsqlTypes;
 
 namespace LN_history.Data.DataStores;
 
@@ -72,6 +74,48 @@ public class ApiKeyStore : IApiKeyStore
 
         await transaction.CommitAsync(cancellationToken);
     }
+
+    public async Task InsertRequestLogAsync(IReadOnlyCollection<RequestLogEntry> entries, CancellationToken cancellationToken)
+    {
+        if (entries.Count == 0) return;
+
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        // Binary COPY: one round trip for the whole batch, however large the backlog is.
+        await using var writer = await connection.BeginBinaryImportAsync(
+            "COPY api.request_log (ts, key_id, method, path, query, route_key, status, cost, charge_outcome, " +
+            "duration_ms, bytes, client_ip, user_agent, trace_id) FROM STDIN (FORMAT BINARY)",
+            cancellationToken);
+
+        foreach (var e in entries)
+        {
+            await writer.StartRowAsync(cancellationToken);
+            await writer.WriteAsync(e.Timestamp, NpgsqlDbType.TimestampTz, cancellationToken);
+            await WriteNullableStructAsync(writer, e.KeyId, NpgsqlDbType.Bigint, cancellationToken);
+            await writer.WriteAsync(e.Method, NpgsqlDbType.Text, cancellationToken);
+            await writer.WriteAsync(e.Path, NpgsqlDbType.Text, cancellationToken);
+            await WriteNullableAsync(writer, e.Query, NpgsqlDbType.Text, cancellationToken);
+            await WriteNullableAsync(writer, e.RouteKey, NpgsqlDbType.Text, cancellationToken);
+            await writer.WriteAsync((short)e.StatusCode, NpgsqlDbType.Smallint, cancellationToken);
+            await writer.WriteAsync(e.Cost, NpgsqlDbType.Integer, cancellationToken);
+            await WriteNullableAsync(writer, e.ChargeOutcome, NpgsqlDbType.Text, cancellationToken);
+            await writer.WriteAsync(e.DurationMs, NpgsqlDbType.Bigint, cancellationToken);
+            await writer.WriteAsync(e.Bytes, NpgsqlDbType.Bigint, cancellationToken);
+            await WriteNullableAsync(writer,
+                IPAddress.TryParse(e.ClientIp, out var ip) ? ip : null, NpgsqlDbType.Inet, cancellationToken);
+            await WriteNullableAsync(writer, e.UserAgent, NpgsqlDbType.Text, cancellationToken);
+            await WriteNullableAsync(writer, e.TraceId, NpgsqlDbType.Text, cancellationToken);
+        }
+
+        await writer.CompleteAsync(cancellationToken);
+    }
+
+    private static Task WriteNullableAsync<T>(NpgsqlBinaryImporter writer, T? value, NpgsqlDbType type, CancellationToken ct)
+        where T : class =>
+        value is null ? writer.WriteNullAsync(ct) : writer.WriteAsync(value, type, ct);
+
+    private static Task WriteNullableStructAsync<T>(NpgsqlBinaryImporter writer, T? value, NpgsqlDbType type, CancellationToken ct)
+        where T : struct =>
+        value is { } v ? writer.WriteAsync(v, type, ct) : writer.WriteNullAsync(ct);
 
     private sealed class ApiKeyRow
     {

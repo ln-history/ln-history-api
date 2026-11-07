@@ -21,6 +21,12 @@ public sealed class ApiAccessOptions
     /// <summary>Concurrent heavy requests (snapshot, diff, stream backfill) a researcher key may run.</summary>
     public int MaxConcurrentHeavyPerKey { get; set; } = 1;
 
+    /// <summary>
+    /// Per-request rows buffered for <c>api.request_log</c> between flushes. Beyond this (DB down for a
+    /// long time) new rows are dropped and counted, so the log can never exhaust the API's memory.
+    /// </summary>
+    public int MaxPendingRequestLog { get; set; } = 50_000;
+
     /// <summary>How often the in-memory key + weight caches are reloaded from the DB.</summary>
     public int ReloadSeconds { get; set; } = 30;
 

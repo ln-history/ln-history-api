@@ -66,3 +66,38 @@ public class ApiAccessServiceTests
         });
     }
 }
+
+public class RequestLogBufferTests
+{
+    private static RequestLogEntry Entry(string path) => new() { Path = path, Method = "GET" };
+
+    [Test]
+    public void Drain_ReturnsBufferedRequests_InOrder_AndEmptiesTheBuffer()
+    {
+        var access = new ApiAccessService(new ApiAccessOptions());
+        access.RecordRequest(Entry("/a"));
+        access.RecordRequest(Entry("/b"));
+
+        var drained = access.DrainPendingRequests();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(drained.Select(e => e.Path), Is.EqualTo(new[] { "/a", "/b" }));
+            Assert.That(access.DrainPendingRequests(), Is.Empty);
+        });
+    }
+
+    [Test]
+    public void FullBuffer_DropsAndCounts_InsteadOfGrowing()
+    {
+        var access = new ApiAccessService(new ApiAccessOptions { MaxPendingRequestLog = 2 });
+        for (var i = 0; i < 5; i++) access.RecordRequest(Entry($"/{i}"));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(access.DrainPendingRequests(), Has.Count.EqualTo(2));
+            Assert.That(access.TakeDroppedRequestCount(), Is.EqualTo(3));
+            Assert.That(access.TakeDroppedRequestCount(), Is.EqualTo(0));
+        });
+    }
+}

@@ -24,6 +24,9 @@ public interface IApiAccessService
     /// <summary>Record measured actuals for the durable usage ledger (skipped for the emergency admin, id 0).</summary>
     void RecordActuals(ApiKeyRecord key, string endpoint, int cost, long durationMs, long bytes);
 
+    /// <summary>Buffer one request for <c>api.request_log</c>; dropped when the buffer is full.</summary>
+    void RecordRequest(RequestLogEntry entry);
+
     /// <summary>Reserve one concurrent stream slot for the key; false if at its cap. Admins unlimited.</summary>
     bool TryAcquireStream(ApiKeyRecord key);
 
@@ -40,4 +43,8 @@ public interface IApiAccessService
     void ApplyKeysAndWeights(IReadOnlyList<ApiKeyRecord> keys, IReadOnlyDictionary<string, int> weights);
     void SeedTodaySpend(IReadOnlyDictionary<long, long> spend, DateOnly utcDay);
     IReadOnlyCollection<UsageDelta> DrainPendingUsage();
+    IReadOnlyCollection<RequestLogEntry> DrainPendingRequests();
+
+    /// <summary>Request-log rows dropped because the buffer was full, since the last call (resets the count).</summary>
+    long TakeDroppedRequestCount();
 }

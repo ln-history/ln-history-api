@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Text.Json;
 using LN_history.Api.Instrumentation;
 using LN_history.Core.Auth;
+using LN_History.Model;
 using Microsoft.Extensions.Logging;
 
 namespace LN_history.Api.Infrastructure;
@@ -12,6 +13,8 @@ namespace LN_history.Api.Infrastructure;
 /// set headers on a WebSocket handshake, so for upgrade requests the key may be supplied as the
 /// <c>api_key</c> query parameter instead of <c>x-api-key</c>. Only added to the pipeline when
 /// <c>ApiKeyMiddleware:Enabled</c> is true (off in Development ⇒ no auth, no limits).
+/// Every authenticated request — including ones refused with 429 — is buffered for
+/// <c>api.request_log</c> with its exact path, query, status, charge, duration, bytes and client.
 /// </summary>
 public sealed class ApiKeyAuthMiddleware
 {
@@ -66,7 +69,120 @@ public sealed class ApiKeyAuthMiddleware
         }
 
         ApiKeyContext.Set(context, record);
-        await _next(context);
+
+        var startedAt = DateTime.UtcNow;
+        var sw = Stopwatch.StartNew();
+        var isWebSocket = context.WebSockets.IsWebSocketRequest;
+        var originalBody = context.Response.Body;
+        // WebSocket frames bypass the response body; the stream controller counts those itself.
+        var counter = isWebSocket ? null : new CountingStream(originalBody);
+        if (counter is not null) context.Response.Body = counter;
+
+        var threw = false;
+        try
+        {
+            await _next(context);
+        }
+        catch
+        {
+            threw = true;
+            throw;
+        }
+        finally
+        {
+            if (counter is not null) context.Response.Body = originalBody;
+            sw.Stop();
+            var bytes = counter?.BytesWritten ?? ApiKeyContext.GetStreamBytes(context);
+            access.RecordRequest(BuildEntry(context, record, startedAt, sw.ElapsedMilliseconds, bytes, threw));
+        }
+    }
+
+    /// <summary>Assemble the request-log row. The <c>api_key</c> query parameter is never stored.</summary>
+    public static RequestLogEntry BuildEntry(
+        HttpContext context, ApiKeyRecord record, DateTime startedAt, long durationMs, long bytes, bool threw)
+    {
+        var request = context.Request;
+        var charge = ApiKeyContext.GetCharge(context);
+        return new RequestLogEntry
+        {
+            Timestamp = startedAt,
+            KeyId = record.Id > 0 ? record.Id : null, // emergency admin has no api_keys row
+            Method = request.Method,
+            Path = request.Path.Value ?? string.Empty,
+            Query = StripApiKey(request.Query),
+            RouteKey = charge?.RouteKey,
+            // An exception escaping the pipeline becomes a 500 even if no status was written yet.
+            StatusCode = threw ? StatusCodes.Status500InternalServerError : context.Response.StatusCode,
+            Cost = charge?.Cost ?? 0,
+            ChargeOutcome = charge?.Outcome,
+            DurationMs = durationMs,
+            Bytes = bytes,
+            ClientIp = ClientIp(context),
+            UserAgent = Truncate(request.Headers.UserAgent.ToString(), 512),
+            TraceId = Activity.Current?.TraceId.ToString(),
+        };
+    }
+
+    public static string? StripApiKey(IQueryCollection query)
+    {
+        var kept = query
+            .Where(kv => !kv.Key.Equals("api_key", StringComparison.OrdinalIgnoreCase))
+            .SelectMany(kv => kv.Value.Select(v => $"{Uri.EscapeDataString(kv.Key)}={Uri.EscapeDataString(v ?? string.Empty)}"))
+            .ToList();
+        return kept.Count == 0 ? null : Truncate(string.Join('&', kept), 2048);
+    }
+
+    /// <summary>
+    /// Requests reach us through Cloudflare and nginx, so the connection peer is a Cloudflare edge.
+    /// Cloudflare puts the real client in CF-Connecting-IP; fall back to the peer if it is missing.
+    /// </summary>
+    private static string? ClientIp(HttpContext context)
+    {
+        var cf = context.Request.Headers["CF-Connecting-IP"].ToString();
+        if (!string.IsNullOrWhiteSpace(cf)) return cf.Trim();
+        return context.Connection.RemoteIpAddress?.ToString();
+    }
+
+    private static string? Truncate(string? value, int max) =>
+        string.IsNullOrEmpty(value) ? null : value.Length <= max ? value : value[..max];
+
+    /// <summary>Pass-through response body that counts what is written, for the request log.</summary>
+    private sealed class CountingStream : Stream
+    {
+        private readonly Stream _inner;
+        public long BytesWritten { get; private set; }
+
+        public CountingStream(Stream inner) => _inner = inner;
+
+        public override bool CanRead => false;
+        public override bool CanSeek => false;
+        public override bool CanWrite => true;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+
+        public override void Write(byte[] buffer, int offset, int count)
+        {
+            _inner.Write(buffer, offset, count);
+            BytesWritten += count;
+        }
+
+        public override async Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+        {
+            await _inner.WriteAsync(buffer.AsMemory(offset, count), cancellationToken);
+            BytesWritten += count;
+        }
+
+        public override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            await _inner.WriteAsync(buffer, cancellationToken);
+            BytesWritten += buffer.Length;
+        }
+
+        public override void Flush() => _inner.Flush();
+        public override Task FlushAsync(CancellationToken cancellationToken) => _inner.FlushAsync(cancellationToken);
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
     }
 
     private static string? ExtractKey(HttpRequest request)

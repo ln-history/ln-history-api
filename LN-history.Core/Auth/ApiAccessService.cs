@@ -23,6 +23,8 @@ public sealed class ApiAccessService : IApiAccessService
 
     private readonly ConcurrentDictionary<long, KeyCounters> _counters = new();
     private ConcurrentDictionary<UsageKey, UsageAccum> _pending = new();
+    private ConcurrentQueue<RequestLogEntry> _pendingRequests = new();
+    private long _droppedRequests;
 
     public ApiAccessService(ApiAccessOptions options)
     {
@@ -103,6 +105,17 @@ public sealed class ApiAccessService : IApiAccessService
         Interlocked.Add(ref acc.Bytes, bytes);
     }
 
+    public void RecordRequest(RequestLogEntry entry)
+    {
+        // Count is O(1) on ConcurrentQueue; a few rows past the cap under contention is harmless.
+        if (_pendingRequests.Count >= _options.MaxPendingRequestLog)
+        {
+            Interlocked.Increment(ref _droppedRequests);
+            return;
+        }
+        _pendingRequests.Enqueue(entry);
+    }
+
     public bool TryAcquireStream(ApiKeyRecord key)
     {
         if (key.IsAdmin) return true;
@@ -171,6 +184,14 @@ public sealed class ApiAccessService : IApiAccessService
             Bytes = kv.Value.Bytes,
         }).ToList();
     }
+
+    public IReadOnlyCollection<RequestLogEntry> DrainPendingRequests()
+    {
+        var drained = Interlocked.Exchange(ref _pendingRequests, new ConcurrentQueue<RequestLogEntry>());
+        return drained.IsEmpty ? Array.Empty<RequestLogEntry>() : drained.ToArray();
+    }
+
+    public long TakeDroppedRequestCount() => Interlocked.Exchange(ref _droppedRequests, 0);
 
     // --- helpers ---
 

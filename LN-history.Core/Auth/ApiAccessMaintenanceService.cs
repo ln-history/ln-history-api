@@ -8,7 +8,8 @@ namespace LN_history.Core.Auth;
 /// <summary>
 /// Feeds and drains the in-memory <see cref="IApiAccessService"/>: loads keys + weights and seeds
 /// today's spend at startup, reloads keys + weights every <c>ReloadSeconds</c>, and flushes usage
-/// deltas to <c>api.usage</c> every <c>FlushSeconds</c> (plus a final flush on shutdown). Only
+/// deltas to <c>api.usage</c> and buffered requests to <c>api.request_log</c> every <c>FlushSeconds</c>
+/// (plus a final flush on shutdown). Only
 /// registered when the API-key middleware is enabled.
 /// </summary>
 public sealed class ApiAccessMaintenanceService : BackgroundService
@@ -105,6 +106,33 @@ public sealed class ApiAccessMaintenanceService : BackgroundService
     }
 
     private async Task FlushAsync(CancellationToken cancellationToken)
+    {
+        await FlushUsageAsync(cancellationToken);
+        await FlushRequestLogAsync(cancellationToken);
+    }
+
+    private async Task FlushRequestLogAsync(CancellationToken cancellationToken)
+    {
+        var dropped = _access.TakeDroppedRequestCount();
+        if (dropped > 0)
+            _logger.LogWarning("The request-log buffer was full; {Dropped} requests were not logged.", dropped);
+
+        var entries = _access.DrainPendingRequests();
+        if (entries.Count == 0) return;
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var store = scope.ServiceProvider.GetRequiredService<IApiKeyStore>();
+            await store.InsertRequestLogAsync(entries, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            // Same contract as the usage ledger: best-effort, enforcement is unaffected.
+            _logger.LogWarning(ex, "Writing {Count} rows to api.request_log failed; they are dropped.", entries.Count);
+        }
+    }
+
+    private async Task FlushUsageAsync(CancellationToken cancellationToken)
     {
         var deltas = _access.DrainPendingUsage();
         if (deltas.Count == 0) return;

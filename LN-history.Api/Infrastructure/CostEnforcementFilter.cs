@@ -54,6 +54,7 @@ public sealed class CostEnforcementFilter : IAsyncResourceFilter
             _logger.LogWarning("Rate-limited {Owner} on {RouteKey}: a heavy request is already running.",
                 record.OwnerLabel, routeKey);
             http.Response.Headers.RetryAfter = "5";
+            ApiKeyContext.SetCharge(http, routeKey, 0, "concurrency_exceeded");
             context.Result = TooManyHeavy();
             return;
         }
@@ -91,6 +92,7 @@ public sealed class CostEnforcementFilter : IAsyncResourceFilter
             _logger.LogWarning(
                 "Rate-limited {Owner} on {RouteKey}: {Outcome}, {Remaining} budget units left, resets at {Reset}.",
                 record.OwnerLabel, routeKey, charge.Outcome, charge.RemainingBudget, charge.ResetUnixSeconds);
+            ApiKeyContext.SetCharge(http, routeKey, 0, OutcomeTag(charge.Outcome));
             context.Result = TooMany(charge);
             return; // handler never runs; DB untouched
         }
@@ -108,6 +110,7 @@ public sealed class CostEnforcementFilter : IAsyncResourceFilter
 
         var bytes = http.Response.ContentLength ?? 0;
         _access.RecordActuals(record, routeKey, refunded ? 0 : weight, sw.ElapsedMilliseconds, bytes);
+        ApiKeyContext.SetCharge(http, routeKey, refunded ? 0 : weight, refunded ? "refunded" : OutcomeTag(charge.Outcome));
     }
 
     /// <summary>
