@@ -11,6 +11,13 @@ namespace LN_history.Api.Controllers;
 [Route("ln-history/v{v:apiVersion}")]
 public class SnapshotController : ControllerBase
 {
+    /// <summary>
+    /// Widest window snapshot-diff will serve. The endpoint exists to catch up on recent gossip; a
+    /// 1-day diff is already ~354K raw messages in one response, so longer ranges should be split
+    /// into several calls or served by a snapshot.
+    /// </summary>
+    public static readonly TimeSpan MaxDiffWindow = TimeSpan.FromHours(2);
+
     private readonly ISnapshotService _snapshots;
 
     public SnapshotController(ISnapshotService snapshots)
@@ -20,7 +27,7 @@ public class SnapshotController : ControllerBase
 
     /// <summary>All gossip valid at a timestamp as a raw byte stream. withUpdates adds active channel_updates.</summary>
     [HttpGet("snapshot/{timestamp}")]
-    [ResourceCost("snapshot", 100)]
+    [ResourceCost("snapshot", 100, Heavy = true)]
     public async Task<IActionResult> GetSnapshot(
         string timestamp,
         [FromQuery(Name = "withUpdates")] bool withUpdates = false,
@@ -33,9 +40,9 @@ public class SnapshotController : ControllerBase
         return File(bytes, "application/octet-stream");
     }
 
-    /// <summary>Gossip that appeared between two timestamps. rawGossip=true returns raw bytes; false returns ordered parsed events.</summary>
+    /// <summary>Gossip that appeared between two timestamps (at most <see cref="MaxDiffWindow"/> apart). rawGossip=true returns raw bytes; false returns ordered parsed events.</summary>
     [HttpGet("snapshot-diff/{start}/{end}")]
-    [ResourceCost("snapshot_diff", 40)]
+    [ResourceCost("snapshot_diff", 40, Heavy = true)]
     public async Task<IActionResult> GetSnapshotDiff(
         string start,
         string end,
@@ -48,6 +55,9 @@ public class SnapshotController : ControllerBase
             return Problem($"Invalid end timestamp: '{end}'.", statusCode: StatusCodes.Status400BadRequest);
         if (endInstant < startInstant)
             return Problem("end must be at or after start.", statusCode: StatusCodes.Status400BadRequest);
+        if (endInstant - startInstant > MaxDiffWindow)
+            return Problem($"The window between start and end may be at most {MaxDiffWindow.TotalMinutes:0} minutes.",
+                statusCode: StatusCodes.Status400BadRequest);
 
         if (rawGossip)
         {

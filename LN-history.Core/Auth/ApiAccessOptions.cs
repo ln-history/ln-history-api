@@ -18,6 +18,9 @@ public sealed class ApiAccessOptions
     /// <summary>Concurrent WebSocket stream connections a researcher key may hold.</summary>
     public int DefaultMaxStreamConns { get; set; } = 2;
 
+    /// <summary>Concurrent heavy requests (snapshot, diff, stream backfill) a researcher key may run.</summary>
+    public int MaxConcurrentHeavyPerKey { get; set; } = 1;
+
     /// <summary>How often the in-memory key + weight caches are reloaded from the DB.</summary>
     public int ReloadSeconds { get; set; } = 30;
 

@@ -30,6 +30,12 @@ public interface IApiAccessService
     /// <summary>Release a stream slot reserved by <see cref="TryAcquireStream"/>.</summary>
     void ReleaseStream(ApiKeyRecord key);
 
+    /// <summary>Reserve one heavy-request slot for the key; false if at its cap. Admins unlimited.</summary>
+    bool TryAcquireHeavy(ApiKeyRecord key);
+
+    /// <summary>Release a heavy-request slot reserved by <see cref="TryAcquireHeavy"/>.</summary>
+    void ReleaseHeavy(ApiKeyRecord key);
+
     // --- maintenance surface (called by ApiAccessMaintenanceService) ---
     void ApplyKeysAndWeights(IReadOnlyList<ApiKeyRecord> keys, IReadOnlyDictionary<string, int> weights);
     void SeedTodaySpend(IReadOnlyDictionary<long, long> spend, DateOnly utcDay);

@@ -119,6 +119,21 @@ public sealed class ApiAccessService : IApiAccessService
             counters.ReleaseStream();
     }
 
+    public bool TryAcquireHeavy(ApiKeyRecord key)
+    {
+        if (key.IsAdmin) return true;
+        var counters = _counters.GetOrAdd(key.Id,
+            _ => new KeyCounters(DateOnly.FromDateTime(DateTime.UtcNow), 0, _options.DefaultBurstBucket, DateTime.UtcNow));
+        return counters.TryAcquireHeavy(Math.Max(_options.MaxConcurrentHeavyPerKey, 1));
+    }
+
+    public void ReleaseHeavy(ApiKeyRecord key)
+    {
+        if (key.IsAdmin) return;
+        if (_counters.TryGetValue(key.Id, out var counters))
+            counters.ReleaseHeavy();
+    }
+
     public void ApplyKeysAndWeights(IReadOnlyList<ApiKeyRecord> keys, IReadOnlyDictionary<string, int> weights)
     {
         _keysByHash = keys.ToDictionary(k => k.KeyHash, k => k);
@@ -192,6 +207,7 @@ public sealed class ApiAccessService : IApiAccessService
         private double _tokens;
         private DateTime _lastRefill;
         private int _streamConns;
+        private int _heavyInFlight;
 
         public KeyCounters(DateOnly day, long spentToday, double initialTokens, DateTime now)
         {
@@ -253,6 +269,23 @@ public sealed class ApiAccessService : IApiAccessService
             lock (_lock)
                 if (_streamConns > 0)
                     _streamConns--;
+        }
+
+        public bool TryAcquireHeavy(int max)
+        {
+            lock (_lock)
+            {
+                if (_heavyInFlight >= max) return false;
+                _heavyInFlight++;
+                return true;
+            }
+        }
+
+        public void ReleaseHeavy()
+        {
+            lock (_lock)
+                if (_heavyInFlight > 0)
+                    _heavyInFlight--;
         }
     }
 }

@@ -12,6 +12,13 @@ public sealed class ResourceCostAttribute : Attribute
     public string Key { get; }
     public int Default { get; }
 
+    /// <summary>
+    /// Marks a DB-heavy action (snapshot, diff). A researcher key may run at most
+    /// <c>ApiAccess:MaxConcurrentHeavyPerKey</c> of these at once; extra requests get 429 without
+    /// being charged. Without this, a key could fan out its whole budget as parallel 60s queries.
+    /// </summary>
+    public bool Heavy { get; set; }
+
     public ResourceCostAttribute(string key, int @default)
     {
         Key = key;

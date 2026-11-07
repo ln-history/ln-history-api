@@ -5,6 +5,7 @@ using LN_history.Api.Infrastructure;
 using LN_history.Api.Instrumentation;
 using LN_history.Core.Auth;
 using LN_history.Core.Services;
+using LN_History.Model;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 
@@ -69,6 +70,7 @@ public class GossipStreamController : ControllerBase
         // after it). record is null only when auth is disabled (Development) => unlimited.
         var record = ApiKeyContext.Get(HttpContext);
         var slotHeld = false;
+        var heavyHeld = false;
         if (record is not null)
         {
             if (!_access.TryAcquireStream(record))
@@ -94,6 +96,15 @@ public class GossipStreamController : ControllerBase
             {
                 if (record is { IsAdmin: false })
                 {
+                    // The backfill query counts as a heavy request, same as snapshot/diff: one at a time per key.
+                    if (!_access.TryAcquireHeavy(record))
+                    {
+                        await socket.CloseAsync(WebSocketCloseStatus.PolicyViolation,
+                            "another heavy request is running", CancellationToken.None);
+                        return;
+                    }
+                    heavyHeld = true;
+
                     var weight = _access.ResolveWeight(BackfillRouteKey, BackfillDefaultWeight);
                     var charge = _access.Charge(record, weight);
                     if (!charge.Allowed)
@@ -127,7 +138,16 @@ public class GossipStreamController : ControllerBase
 
                 if (since is { } cursor2)
                 {
-                    var backlog = await _stream.GetBackfillAsync(cursor2, typeFilter, MaxBackfill, token);
+                    IReadOnlyList<GossipFrame> backlog;
+                    try
+                    {
+                        backlog = await _stream.GetBackfillAsync(cursor2, typeFilter, MaxBackfill, token);
+                    }
+                    finally
+                    {
+                        // Only the DB query is heavy; sending the frames is not.
+                        if (heavyHeld) { _access.ReleaseHeavy(record!); heavyHeld = false; }
+                    }
                     foreach (var frame in backlog)
                     {
                         await SendAsync(socket, frame.RawGossip, token);
@@ -166,6 +186,8 @@ public class GossipStreamController : ControllerBase
         }
         finally
         {
+            if (heavyHeld && record is not null)
+                _access.ReleaseHeavy(record);
             if (slotHeld && record is not null)
                 _access.ReleaseStream(record);
         }
